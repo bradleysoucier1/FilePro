@@ -6,9 +6,10 @@ A lightweight personal file storage app using Firebase Auth, Firestore, and Fire
 
 - Email/password sign-up and sign-in
 - Google sign-in with popup
-- Upload files to Firebase Storage
+- Create folders and navigate directly with hash routes like `/#folder/<folder-id>`
+- Upload files to Firebase Storage (root or selected folder)
 - Store file metadata in Firestore
-- List user files in real time
+- List user folders/files in real time
 - Open and delete uploaded files
 
 ## Run locally
@@ -38,6 +39,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId}/files/{fileId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/folders/{folderId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }

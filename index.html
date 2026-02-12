@@ -47,6 +47,23 @@
         </div>
         <p id="user-email" class="muted"></p>
 
+        <div class="folder-toolbar">
+          <form id="folder-form" class="inline-form">
+            <input
+              id="folder-name"
+              type="text"
+              placeholder="New folder name"
+              required
+              maxlength="80"
+            />
+            <button type="submit">Create folder</button>
+          </form>
+        </div>
+
+        <p id="current-folder" class="muted">Current folder: Root</p>
+
+        <ul id="folder-list" class="folder-list"></ul>
+
         <form id="upload-form" class="stack">
           <label>
             Select file

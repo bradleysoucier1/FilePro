@@ -103,15 +103,32 @@ button.google {
   font-weight: 500;
 }
 
-.file-list {
-  margin: 1rem 0 0;
+.folder-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inline-form input {
+  min-width: 220px;
+  flex: 1;
+}
+
+.file-list,
+.folder-list {
+  margin: 1rem 0;
   padding: 0;
   list-style: none;
   display: grid;
   gap: 0.65rem;
 }
 
-.file-list li {
+.file-list li,
+.folder-list li {
   border: 1px solid #374151;
   background: #111827;
   border-radius: 8px;
@@ -126,6 +143,7 @@ button.google {
 .file-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
 }
 
 a {

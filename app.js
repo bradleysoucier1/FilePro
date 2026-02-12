@@ -14,6 +14,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -58,6 +59,10 @@ const authForm = document.querySelector("#auth-form");
 const signupBtn = document.querySelector("#signup-btn");
 const googleBtn = document.querySelector("#google-btn");
 const logoutBtn = document.querySelector("#logout-btn");
+const folderForm = document.querySelector("#folder-form");
+const folderNameInput = document.querySelector("#folder-name");
+const currentFolderText = document.querySelector("#current-folder");
+const folderList = document.querySelector("#folder-list");
 const uploadForm = document.querySelector("#upload-form");
 const fileInput = document.querySelector("#file-input");
 const fileList = document.querySelector("#file-list");
@@ -66,6 +71,8 @@ const userEmail = document.querySelector("#user-email");
 const uploadProgress = document.querySelector("#upload-progress");
 
 let unsubscribeFiles = null;
+let unsubscribeFolders = null;
+let activeFolderId = null;
 
 const setStatus = (message, isError = false) => {
   statusText.textContent = message;
@@ -76,11 +83,32 @@ const clearFiles = () => {
   fileList.innerHTML = "";
 };
 
+const clearFolders = () => {
+  folderList.innerHTML = "";
+};
+
+const getFolderIdFromHash = () => {
+  const hash = window.location.hash || "";
+  const match = hash.match(/^#folder\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
+const setFolderHash = (folderId) => {
+  if (folderId) {
+    window.location.hash = `#folder/${encodeURIComponent(folderId)}`;
+    return;
+  }
+
+  if (window.location.hash) {
+    history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
+};
+
 const renderFiles = (docs) => {
   clearFiles();
 
   if (docs.length === 0) {
-    fileList.innerHTML = "<li>No files uploaded yet.</li>";
+    fileList.innerHTML = "<li>No files in this folder yet.</li>";
     return;
   }
 
@@ -103,7 +131,44 @@ const renderFiles = (docs) => {
   });
 };
 
-const watchFiles = (uid) => {
+const renderFolders = (folders) => {
+  clearFolders();
+
+  const rootLi = document.createElement("li");
+  rootLi.innerHTML = `
+    <div>
+      <strong>📁 Root</strong><br>
+      <small>Open root folder</small>
+    </div>
+    <div class="file-actions">
+      <a href="/#">Go</a>
+    </div>
+  `;
+  folderList.appendChild(rootLi);
+
+  if (folders.length === 0) {
+    const li = document.createElement("li");
+    li.innerHTML = "<div><small>No subfolders yet.</small></div>";
+    folderList.appendChild(li);
+    return;
+  }
+
+  folders.forEach((folder) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div>
+        <strong>📁 ${folder.name}</strong><br>
+        <small>ID: ${folder.id}</small>
+      </div>
+      <div class="file-actions">
+        <a href="/#folder/${folder.id}">Open</a>
+      </div>
+    `;
+    folderList.appendChild(li);
+  });
+};
+
+const watchFiles = (uid, folderId) => {
   if (unsubscribeFiles) {
     unsubscribeFiles();
   }
@@ -116,16 +181,70 @@ const watchFiles = (uid) => {
   unsubscribeFiles = onSnapshot(
     filesQuery,
     (snapshot) => {
-      const files = snapshot.docs.map((fileDoc) => ({
-        id: fileDoc.id,
-        ...fileDoc.data(),
-      }));
+      const files = snapshot.docs
+        .map((fileDoc) => ({
+          id: fileDoc.id,
+          ...fileDoc.data(),
+        }))
+        .filter((file) => (file.folderId || null) === (folderId || null));
       renderFiles(files);
     },
     (error) => {
       setStatus(error.message, true);
     }
   );
+};
+
+const watchFolders = (uid) => {
+  if (unsubscribeFolders) {
+    unsubscribeFolders();
+  }
+
+  const foldersQuery = query(
+    collection(db, "users", uid, "folders"),
+    orderBy("createdAt", "desc")
+  );
+
+  unsubscribeFolders = onSnapshot(
+    foldersQuery,
+    (snapshot) => {
+      const folders = snapshot.docs.map((folderDoc) => ({
+        id: folderDoc.id,
+        ...folderDoc.data(),
+      }));
+      renderFolders(folders);
+    },
+    (error) => {
+      setStatus(error.message, true);
+    }
+  );
+};
+
+const setCurrentFolderLabel = async (uid, folderId) => {
+  if (!folderId) {
+    currentFolderText.textContent = "Current folder: Root";
+    return;
+  }
+
+  const folderRef = doc(db, "users", uid, "folders", folderId);
+  const folderSnap = await getDoc(folderRef);
+
+  if (!folderSnap.exists()) {
+    setFolderHash(null);
+    activeFolderId = null;
+    currentFolderText.textContent = "Current folder: Root";
+    setStatus("Folder does not exist. Returned to root.", true);
+    return;
+  }
+
+  const folder = folderSnap.data();
+  currentFolderText.textContent = `Current folder: ${folder.name}`;
+};
+
+const applyFolderFromHash = async (uid) => {
+  activeFolderId = getFolderIdFromHash();
+  await setCurrentFolderLabel(uid, activeFolderId);
+  watchFiles(uid, activeFolderId);
 };
 
 const provider = new GoogleAuthProvider();
@@ -172,6 +291,28 @@ logoutBtn.addEventListener("click", async () => {
   setStatus("Logged out.");
 });
 
+folderForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const user = auth.currentUser;
+  const name = folderNameInput.value.trim();
+
+  if (!user || !name) {
+    return;
+  }
+
+  try {
+    const folderDoc = await addDoc(collection(db, "users", user.uid, "folders"), {
+      name,
+      createdAt: serverTimestamp(),
+    });
+    folderForm.reset();
+    setFolderHash(folderDoc.id);
+    setStatus("Folder created.");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
 uploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const user = auth.currentUser;
@@ -183,7 +324,7 @@ uploadForm.addEventListener("submit", async (event) => {
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const storagePath = `users/${user.uid}/${Date.now()}-${safeName}`;
+  const storagePath = `users/${user.uid}/${activeFolderId || "root"}/${Date.now()}-${safeName}`;
   const storageRef = ref(storage, storagePath);
   const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -207,6 +348,7 @@ uploadForm.addEventListener("submit", async (event) => {
           size: file.size,
           type: file.type || "application/octet-stream",
           storagePath,
+          folderId: activeFolderId || null,
           downloadURL,
           createdAt: serverTimestamp(),
         });
@@ -250,22 +392,38 @@ fileList.addEventListener("click", async (event) => {
   }
 });
 
-onAuthStateChanged(auth, (user) => {
+window.addEventListener("hashchange", async () => {
+  const user = auth.currentUser;
+  if (!user) {
+    return;
+  }
+  await applyFolderFromHash(user.uid);
+});
+
+onAuthStateChanged(auth, async (user) => {
   if (user) {
     authSection.classList.add("hidden");
     appSection.classList.remove("hidden");
     userEmail.textContent = `Signed in as ${user.email}`;
-    watchFiles(user.uid);
+    watchFolders(user.uid);
+    await applyFolderFromHash(user.uid);
   } else {
     authSection.classList.remove("hidden");
     appSection.classList.add("hidden");
     userEmail.textContent = "";
     uploadProgress.textContent = "";
+    currentFolderText.textContent = "Current folder: Root";
     clearFiles();
+    clearFolders();
+    activeFolderId = null;
 
     if (unsubscribeFiles) {
       unsubscribeFiles();
       unsubscribeFiles = null;
+    }
+    if (unsubscribeFolders) {
+      unsubscribeFolders();
+      unsubscribeFolders = null;
     }
   }
 });
