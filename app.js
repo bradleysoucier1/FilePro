@@ -74,6 +74,53 @@ const statusText = document.querySelector("#status");
 const userEmail = document.querySelector("#user-email");
 const uploadProgress = document.querySelector("#upload-progress");
 
+const createRipple = (event) => {
+  const button = event.currentTarget;
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const rect = button.getBoundingClientRect();
+  const ripple = document.createElement("span");
+  ripple.className = "ripple";
+
+  const diameter = Math.max(rect.width, rect.height);
+  const radius = diameter / 2;
+  const left = event.clientX - rect.left - radius;
+  const top = event.clientY - rect.top - radius;
+
+  ripple.style.width = `${diameter}px`;
+  ripple.style.height = `${diameter}px`;
+  ripple.style.left = `${left}px`;
+  ripple.style.top = `${top}px`;
+
+  const existing = button.querySelector(".ripple");
+  if (existing) {
+    existing.remove();
+  }
+
+  button.appendChild(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+};
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  const button = target.closest("button");
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  createRipple({
+    currentTarget: button,
+    clientX: event.clientX,
+    clientY: event.clientY,
+  });
+});
+
 let unsubscribeFiles = null;
 let unsubscribeFolders = null;
 let activeFolderId = null;
