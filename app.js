@@ -142,7 +142,7 @@ const renderFolders = (folders) => {
       <small>Open root folder</small>
     </div>
     <div class="file-actions">
-      <a href="/#">Go</a>
+      <a href="#">Go</a>
     </div>
   `;
   folderList.appendChild(rootLi);
@@ -162,7 +162,7 @@ const renderFolders = (folders) => {
         <small>ID: ${folder.id}</small>
       </div>
       <div class="file-actions">
-        <a href="/#folder/${encodeURIComponent(folder.id)}">Open</a>
+        <a href="#folder/${encodeURIComponent(folder.id)}">Open</a>
       </div>
     `;
     folderList.appendChild(li);
