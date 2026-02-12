@@ -19,6 +19,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import {
   getStorage,
@@ -161,7 +162,7 @@ const renderFolders = (folders) => {
         <small>ID: ${folder.id}</small>
       </div>
       <div class="file-actions">
-        <a href="/#folder/${folder.id}">Open</a>
+        <a href="/#folder/${encodeURIComponent(folder.id)}">Open</a>
       </div>
     `;
     folderList.appendChild(li);
@@ -202,7 +203,7 @@ const watchFolders = (uid) => {
 
   const foldersQuery = query(
     collection(db, "users", uid, "folders"),
-    orderBy("createdAt", "desc")
+    orderBy("name", "asc")
   );
 
   unsubscribeFolders = onSnapshot(
@@ -295,21 +296,34 @@ folderForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const user = auth.currentUser;
   const name = folderNameInput.value.trim();
+  const submitButton = folderForm.querySelector("button[type='submit']");
 
-  if (!user || !name) {
+  if (!user) {
+    setStatus("You must be signed in to create a folder.", true);
     return;
   }
+
+  if (!name) {
+    setStatus("Folder name cannot be empty.", true);
+    return;
+  }
+
+  submitButton.disabled = true;
+  setStatus("Creating folder...");
 
   try {
     const folderDoc = await addDoc(collection(db, "users", user.uid, "folders"), {
       name,
-      createdAt: serverTimestamp(),
+      createdAt: Timestamp.now(),
     });
+
     folderForm.reset();
     setFolderHash(folderDoc.id);
     setStatus("Folder created.");
   } catch (error) {
-    setStatus(error.message, true);
+    setStatus(error.message || "Failed to create folder.", true);
+  } finally {
+    submitButton.disabled = false;
   }
 });
 
@@ -421,6 +435,7 @@ onAuthStateChanged(auth, async (user) => {
       unsubscribeFiles();
       unsubscribeFiles = null;
     }
+
     if (unsubscribeFolders) {
       unsubscribeFolders();
       unsubscribeFolders = null;
