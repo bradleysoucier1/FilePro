@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FilePro | Personal File Storage</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>FilePro</h1>
+      <p class="subtitle">Secure personal file storage powered by Firebase.</p>
+
+      <section id="auth-section" class="card">
+        <h2>Sign in</h2>
+        <form id="auth-form" class="stack">
+          <label>
+            Email
+            <input id="email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="6"
+              required
+            />
+          </label>
+          <div class="button-row">
+            <button type="submit" id="login-btn">Sign in</button>
+            <button type="button" id="signup-btn" class="secondary">
+              Create account
+            </button>
+            <button type="button" id="google-btn" class="google">
+              Sign in with Google
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section id="app-section" class="card hidden">
+        <div class="header-row">
+          <h2>Your files</h2>
+          <button id="logout-btn" class="secondary">Log out</button>
+        </div>
+        <p id="user-email" class="muted"></p>
+
+        <div class="folder-toolbar">
+          <form id="folder-form" class="inline-form">
+            <input
+              id="folder-name"
+              type="text"
+              placeholder="New folder name"
+              required
+              maxlength="80"
+            />
+            <button type="submit">Create folder</button>
+          </form>
+        </div>
+
+        <p id="current-folder" class="muted">Current folder: Root</p>
+
+        <ul id="folder-list" class="folder-list"></ul>
+
+        <form id="upload-form" class="stack">
+          <label>
+            Select file
+            <input id="file-input" type="file" required />
+          </label>
+          <button type="submit">Upload file</button>
+        </form>
+
+        <p id="upload-progress" class="muted"></p>
+
+        <ul id="file-list" class="file-list"></ul>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
