@@ -154,3 +154,8 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+
+button.danger {
+  background: #b91c1c;
+}

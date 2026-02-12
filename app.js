@@ -15,11 +15,14 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   Timestamp,
+  updateDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import {
   getStorage,
@@ -142,7 +145,7 @@ const renderFolders = (folders) => {
       <small>Open root folder</small>
     </div>
     <div class="file-actions">
-      <a href="#">Go</a>
+      <button type="button" data-open-folder-id="">Go</button>
     </div>
   `;
   folderList.appendChild(rootLi);
@@ -162,7 +165,9 @@ const renderFolders = (folders) => {
         <small>ID: ${folder.id}</small>
       </div>
       <div class="file-actions">
-        <a href="#folder/${encodeURIComponent(folder.id)}">Open</a>
+        <button type="button" data-open-folder-id="${folder.id}">Open</button>
+        <button type="button" data-rename-folder-id="${folder.id}" data-folder-name="${folder.name}" class="secondary">Rename</button>
+        <button type="button" data-delete-folder-id="${folder.id}" class="danger">Delete</button>
       </div>
     `;
     folderList.appendChild(li);
@@ -401,6 +406,83 @@ fileList.addEventListener("click", async (event) => {
     setStatus("File deleted.");
   } catch (error) {
     setStatus(error.message, true);
+  } finally {
+    target.disabled = false;
+  }
+});
+
+folderList.addEventListener("click", async (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const user = auth.currentUser;
+  if (!user) {
+    return;
+  }
+
+  const openFolderId = target.dataset.openFolderId;
+  if (openFolderId !== undefined) {
+    setFolderHash(openFolderId || null);
+    return;
+  }
+
+  const renameFolderId = target.dataset.renameFolderId;
+  if (renameFolderId) {
+    const currentName = target.dataset.folderName || "";
+    const nextName = window.prompt("Rename folder", currentName)?.trim();
+
+    if (!nextName) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "users", user.uid, "folders", renameFolderId), {
+        name: nextName,
+      });
+      setStatus("Folder renamed.");
+    } catch (error) {
+      setStatus(error.message || "Failed to rename folder.", true);
+    }
+
+    return;
+  }
+
+  const deleteFolderId = target.dataset.deleteFolderId;
+  if (!deleteFolderId) {
+    return;
+  }
+
+  if (!window.confirm("Delete this folder? Files will be moved to Root.")) {
+    return;
+  }
+
+  target.disabled = true;
+
+  try {
+    const filesInFolderQuery = query(
+      collection(db, "users", user.uid, "files"),
+      where("folderId", "==", deleteFolderId)
+    );
+    const filesInFolder = await getDocs(filesInFolderQuery);
+
+    for (const fileDoc of filesInFolder.docs) {
+      await updateDoc(doc(db, "users", user.uid, "files", fileDoc.id), {
+        folderId: null,
+      });
+    }
+
+    await deleteDoc(doc(db, "users", user.uid, "folders", deleteFolderId));
+
+    if (activeFolderId === deleteFolderId) {
+      setFolderHash(null);
+    }
+
+    setStatus("Folder deleted. Files moved to Root.");
+  } catch (error) {
+    setStatus(error.message || "Failed to delete folder.", true);
   } finally {
     target.disabled = false;
   }
