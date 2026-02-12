@@ -4,15 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FilePro | Personal File Storage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="background-glow"></div>
     <main class="container">
-      <h1>FilePro</h1>
-      <p class="subtitle">Secure personal file storage powered by Firebase.</p>
+      <header class="hero card">
+        <div>
+          <p class="eyebrow">Firebase-powered personal cloud</p>
+          <h1>FilePro</h1>
+          <p class="subtitle">
+            Upload, organize, and manage your personal files with secure auth,
+            folders, and instant updates.
+          </p>
+        </div>
+        <div class="hero-badge">🔐 Private by account</div>
+      </header>
 
-      <section id="auth-section" class="card">
-        <h2>Sign in</h2>
+      <section id="auth-section" class="card auth-card">
+        <h2>Sign in to your workspace</h2>
         <form id="auth-form" class="stack">
           <label>
             Email
@@ -34,47 +50,55 @@
               Create account
             </button>
             <button type="button" id="google-btn" class="google">
-              Sign in with Google
+              Continue with Google
             </button>
           </div>
         </form>
       </section>
 
-      <section id="app-section" class="card hidden">
+      <section id="app-section" class="card app-card hidden">
         <div class="header-row">
-          <h2>Your files</h2>
+          <div>
+            <h2>Your file workspace</h2>
+            <p id="user-email" class="muted"></p>
+          </div>
           <button id="logout-btn" class="secondary">Log out</button>
         </div>
-        <p id="user-email" class="muted"></p>
 
-        <div class="folder-toolbar">
-          <form id="folder-form" class="inline-form">
-            <input
-              id="folder-name"
-              type="text"
-              placeholder="New folder name"
-              required
-              maxlength="80"
-            />
-            <button type="submit">Create folder</button>
-          </form>
+        <div class="workspace-grid">
+          <aside class="panel panel-folders">
+            <h3>Folders</h3>
+            <form id="folder-form" class="inline-form">
+              <input
+                id="folder-name"
+                type="text"
+                placeholder="New folder name"
+                required
+                maxlength="80"
+              />
+              <button type="submit">Create</button>
+            </form>
+            <p id="current-folder" class="muted">Current folder: Root</p>
+            <ul id="folder-list" class="folder-list"></ul>
+          </aside>
+
+          <section class="panel panel-files">
+            <div class="upload-head">
+              <h3>Files</h3>
+              <p id="upload-progress" class="muted"></p>
+            </div>
+
+            <form id="upload-form" class="stack upload-form">
+              <label>
+                Select file
+                <input id="file-input" type="file" required />
+              </label>
+              <button type="submit">Upload file</button>
+            </form>
+
+            <ul id="file-list" class="file-list"></ul>
+          </section>
         </div>
-
-        <p id="current-folder" class="muted">Current folder: Root</p>
-
-        <ul id="folder-list" class="folder-list"></ul>
-
-        <form id="upload-form" class="stack">
-          <label>
-            Select file
-            <input id="file-input" type="file" required />
-          </label>
-          <button type="submit">Upload file</button>
-        </form>
-
-        <p id="upload-progress" class="muted"></p>
-
-        <ul id="file-list" class="file-list"></ul>
       </section>
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
