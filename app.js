@@ -421,7 +421,6 @@ onAuthStateChanged(auth, async (user) => {
       unsubscribeFiles();
       unsubscribeFiles = null;
     }
-
     if (unsubscribeFolders) {
       unsubscribeFolders();
       unsubscribeFolders = null;
