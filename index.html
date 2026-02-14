@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FilePro | Personal File Storage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-glow"></div>
+    <main class="container">
+      <header class="hero card">
+        <div>
+          <p class="eyebrow">Firebase-powered personal cloud</p>
+          <h1>FilePro</h1>
+          <p class="subtitle">
+            Upload, organize, and manage your personal files with secure auth,
+            folders, and instant updates.
+          </p>
+        </div>
+        <div class="hero-badge">🔐 Private by account</div>
+      </header>
+
+      <section id="auth-section" class="card auth-card">
+        <h2>Sign in to your workspace</h2>
+        <form id="auth-form" class="stack">
+          <label>
+            Email
+            <input id="email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="6"
+              required
+            />
+          </label>
+          <div class="button-row">
+            <button type="submit" id="login-btn">Sign in</button>
+            <button type="button" id="signup-btn" class="secondary">
+              Create account
+            </button>
+            <button type="button" id="google-btn" class="google">
+              Continue with Google
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section id="app-section" class="card app-card hidden">
+        <div class="header-row">
+          <div>
+            <h2>Your file workspace</h2>
+            <p id="user-email" class="muted"></p>
+          </div>
+          <button id="logout-btn" class="secondary">Log out</button>
+        </div>
+
+        <div class="workspace-grid">
+          <aside class="panel panel-folders">
+            <h3>Folders</h3>
+            <form id="folder-form" class="inline-form">
+              <input
+                id="folder-name"
+                type="text"
+                placeholder="New folder name"
+                required
+                maxlength="80"
+              />
+              <button type="submit">Create</button>
+            </form>
+            <p id="current-folder" class="muted">Current folder: Root</p>
+            <ul id="folder-list" class="folder-list"></ul>
+          </aside>
+
+          <section class="panel panel-files">
+            <div class="upload-head">
+              <h3>Files</h3>
+              <p id="upload-progress" class="muted"></p>
+            </div>
+
+            <form id="upload-form" class="stack upload-form">
+              <label>
+                Select file
+                <input id="file-input" type="file" required />
+              </label>
+              <button type="submit">Upload file</button>
+            </form>
+
+            <form id="text-file-form" class="stack text-file-form">
+              <h4>Create or edit .txt file</h4>
+              <label>
+                File name
+                <input id="text-file-name" type="text" placeholder="notes.txt" maxlength="120" required />
+              </label>
+              <label>
+                Content
+                <textarea id="text-file-content" rows="8" placeholder="Write your text file content here..." required></textarea>
+              </label>
+              <div class="file-actions">
+                <button type="submit" id="save-text-file-btn">Save .txt</button>
+                <button type="button" id="cancel-text-edit-btn" class="secondary hidden">Cancel edit</button>
+              </div>
+            </form>
+
+            <ul id="file-list" class="file-list"></ul>
+          </section>
+        </div>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
