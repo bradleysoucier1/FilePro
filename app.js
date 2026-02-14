@@ -23,6 +23,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  setDoc,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import {
   getStorage,
@@ -74,6 +75,10 @@ const fileList = document.querySelector("#file-list");
 const statusText = document.querySelector("#status");
 const userEmail = document.querySelector("#user-email");
 const uploadProgress = document.querySelector("#upload-progress");
+const shareSection = document.querySelector("#share-section");
+const shareMeta = document.querySelector("#share-meta");
+const shareOpenLink = document.querySelector("#share-open-link");
+const shareBackBtn = document.querySelector("#share-back-btn");
 const textFileForm = document.querySelector("#text-file-form");
 const textFileNameInput = document.querySelector("#text-file-name");
 const textFileContentInput = document.querySelector("#text-file-content");
@@ -149,6 +154,21 @@ const getFolderIdFromHash = () => {
   const hash = window.location.hash || "";
   const match = hash.match(/^#folder\/([^/]+)$/);
   return match ? decodeURIComponent(match[1]) : null;
+};
+
+const getShareIdFromHash = () => {
+  const hash = window.location.hash || "";
+  const match = hash.match(/^#share\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
+const getShareUrl = (shareId) => `${window.location.origin}${window.location.pathname}#share/${encodeURIComponent(shareId)}`;
+
+const showSection = (section) => {
+  authSection.classList.add("hidden");
+  appSection.classList.add("hidden");
+  shareSection.classList.add("hidden");
+  section.classList.remove("hidden");
 };
 
 const setFolderHash = (folderId) => {
@@ -227,6 +247,11 @@ const renderFiles = (docs) => {
       ? `<button type="button" data-edit-text-id="${item.id}" class="secondary">Edit text</button>`
       : "";
 
+    const shareButton = item.shareId
+      ? `<button type="button" data-unshare-id="${item.id}" data-share-id="${item.shareId}" class="secondary">Unshare</button>
+         <button type="button" data-copy-share-id="${item.shareId}" class="secondary">Copy link</button>`
+      : `<button type="button" data-share-id="${item.id}" class="secondary">Share</button>`;
+
     li.innerHTML = `
       <div>
         <strong>${item.name}</strong><br>
@@ -235,6 +260,7 @@ const renderFiles = (docs) => {
       <div class="file-actions">
         <a href="${item.downloadURL}" target="_blank" rel="noopener noreferrer">Open</a>
         ${textEditButton}
+        ${shareButton}
         <button type="button" data-delete-id="${item.id}" data-storage-path="${item.storagePath}" class="secondary">Delete</button>
       </div>
     `;
@@ -359,6 +385,68 @@ const applyFolderFromHash = async (uid) => {
   activeFolderId = getFolderIdFromHash();
   await setCurrentFolderLabel(uid, activeFolderId);
   watchFiles(uid, activeFolderId);
+};
+
+const openShareView = async (shareId) => {
+  try {
+    const sharedDoc = await getDoc(doc(db, "publicShares", shareId));
+    if (!sharedDoc.exists()) {
+      throw new Error("Shared file link is invalid or expired.");
+    }
+
+    const data = sharedDoc.data();
+    shareMeta.textContent = `${data.name || "Shared file"} • shared by ${data.ownerEmail || "FilePro user"}`;
+    shareOpenLink.href = data.downloadURL;
+    showSection(shareSection);
+    setStatus("Opened shared file link.");
+  } catch (error) {
+    shareMeta.textContent = "";
+    shareOpenLink.href = "#";
+    showSection(auth.currentUser ? appSection : authSection);
+    setStatus(error.message || "Unable to open shared link.", true);
+  }
+};
+
+const handleRoute = async (user) => {
+  const shareId = getShareIdFromHash();
+  if (shareId) {
+    if (unsubscribeFiles) {
+      unsubscribeFiles();
+      unsubscribeFiles = null;
+    }
+    if (unsubscribeFolders) {
+      unsubscribeFolders();
+      unsubscribeFolders = null;
+    }
+    await openShareView(shareId);
+    return;
+  }
+
+  if (user) {
+    showSection(appSection);
+    userEmail.textContent = `Signed in as ${user.email}`;
+    watchFolders(user.uid);
+    await applyFolderFromHash(user.uid);
+  } else {
+    showSection(authSection);
+    userEmail.textContent = "";
+    uploadProgress.textContent = "";
+    currentFolderText.textContent = "Current folder: Root";
+    clearFiles();
+    clearFolders();
+    activeFolderId = null;
+    resetTextFileEditor();
+
+    if (unsubscribeFiles) {
+      unsubscribeFiles();
+      unsubscribeFiles = null;
+    }
+
+    if (unsubscribeFolders) {
+      unsubscribeFolders();
+      unsubscribeFolders = null;
+    }
+  }
 };
 
 const provider = new GoogleAuthProvider();
@@ -598,6 +686,65 @@ fileList.addEventListener("click", async (event) => {
     return;
   }
 
+  const copyShareId = target.dataset.copyShareId;
+  if (copyShareId) {
+    try {
+      await navigator.clipboard.writeText(getShareUrl(copyShareId));
+      setStatus("Share link copied.");
+    } catch (error) {
+      setStatus("Unable to copy link. Copy it manually: " + getShareUrl(copyShareId), true);
+    }
+    return;
+  }
+
+  const shareFileId = target.dataset.shareId;
+  if (shareFileId && !target.dataset.unshareId) {
+    target.disabled = true;
+    try {
+      const fileSnap = await getDoc(doc(db, "users", user.uid, "files", shareFileId));
+      if (!fileSnap.exists()) {
+        throw new Error("File not found.");
+      }
+      const fileData = fileSnap.data();
+      const shareId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`).replace(/[^a-zA-Z0-9-]/g, "");
+      await setDoc(doc(db, "publicShares", shareId), {
+        ownerUid: user.uid,
+        ownerEmail: user.email || "",
+        fileId: shareFileId,
+        name: fileData.name,
+        downloadURL: fileData.downloadURL,
+        storagePath: fileData.storagePath,
+        createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "users", user.uid, "files", shareFileId), { shareId });
+      setStatus("File shared. Link copied.");
+      try { await navigator.clipboard.writeText(getShareUrl(shareId)); } catch {}
+    } catch (error) {
+      setStatus(error.message || "Failed to share file.", true);
+    } finally {
+      target.disabled = false;
+    }
+    return;
+  }
+
+  const unshareFileId = target.dataset.unshareId;
+  if (unshareFileId) {
+    target.disabled = true;
+    try {
+      const shareId = target.dataset.shareId;
+      if (shareId) {
+        await deleteDoc(doc(db, "publicShares", shareId));
+      }
+      await updateDoc(doc(db, "users", user.uid, "files", unshareFileId), { shareId: null });
+      setStatus("File unshared.");
+    } catch (error) {
+      setStatus(error.message || "Failed to unshare file.", true);
+    } finally {
+      target.disabled = false;
+    }
+    return;
+  }
+
   const fileId = target.dataset.deleteId;
   const storagePath = target.dataset.storagePath;
 
@@ -608,8 +755,14 @@ fileList.addEventListener("click", async (event) => {
   target.disabled = true;
 
   try {
+    const fileSnap = await getDoc(doc(db, "users", user.uid, "files", fileId));
+    const shareId = fileSnap.exists() ? fileSnap.data().shareId : null;
+
     await deleteObject(ref(storage, storagePath));
     await deleteDoc(doc(db, "users", user.uid, "files", fileId));
+    if (shareId) {
+      await deleteDoc(doc(db, "publicShares", shareId));
+    }
 
     if (editingTextFile?.id === fileId) {
       resetTextFileEditor();
@@ -700,40 +853,24 @@ folderList.addEventListener("click", async (event) => {
   }
 });
 
-window.addEventListener("hashchange", async () => {
-  const user = auth.currentUser;
-  if (!user) {
-    return;
+shareBackBtn.addEventListener("click", () => {
+  if (auth.currentUser) {
+    if (activeFolderId) {
+      window.location.hash = `#folder/${encodeURIComponent(activeFolderId)}`;
+    } else {
+      history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      handleRoute(auth.currentUser);
+    }
+  } else {
+    history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    handleRoute(null);
   }
-  await applyFolderFromHash(user.uid);
+});
+
+window.addEventListener("hashchange", async () => {
+  await handleRoute(auth.currentUser);
 });
 
 onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    authSection.classList.add("hidden");
-    appSection.classList.remove("hidden");
-    userEmail.textContent = `Signed in as ${user.email}`;
-    watchFolders(user.uid);
-    await applyFolderFromHash(user.uid);
-  } else {
-    authSection.classList.remove("hidden");
-    appSection.classList.add("hidden");
-    userEmail.textContent = "";
-    uploadProgress.textContent = "";
-    currentFolderText.textContent = "Current folder: Root";
-    clearFiles();
-    clearFolders();
-    activeFolderId = null;
-    resetTextFileEditor();
-
-    if (unsubscribeFiles) {
-      unsubscribeFiles();
-      unsubscribeFiles = null;
-    }
-
-    if (unsubscribeFolders) {
-      unsubscribeFolders();
-      unsubscribeFolders = null;
-    }
-  }
+  await handleRoute(user);
 });

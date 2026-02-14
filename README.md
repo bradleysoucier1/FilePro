@@ -9,6 +9,7 @@ A lightweight personal file storage app using Firebase Auth, Firestore, and Fire
 - Create folders and navigate directly with hash routes like `/#folder/<folder-id>`
 - Rename and delete folders
 - Create and edit `.txt` files directly in-app
+- Share and unshare files with hash links like `/#share/<share-id>`
 - Upload files to Firebase Storage (root or selected folder)
 - Store file metadata in Firestore
 - List user folders/files in real time
@@ -45,6 +46,10 @@ service cloud.firestore {
     }
     match /users/{userId}/folders/{folderId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /publicShares/{shareId} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }
