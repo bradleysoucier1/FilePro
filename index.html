@@ -96,6 +96,22 @@
               <button type="submit">Upload file</button>
             </form>
 
+            <form id="text-file-form" class="stack text-file-form">
+              <h4>Create or edit .txt file</h4>
+              <label>
+                File name
+                <input id="text-file-name" type="text" placeholder="notes.txt" maxlength="120" required />
+              </label>
+              <label>
+                Content
+                <textarea id="text-file-content" rows="8" placeholder="Write your text file content here..." required></textarea>
+              </label>
+              <div class="file-actions">
+                <button type="submit" id="save-text-file-btn">Save .txt</button>
+                <button type="button" id="cancel-text-edit-btn" class="secondary hidden">Cancel edit</button>
+              </div>
+            </form>
+
             <ul id="file-list" class="file-list"></ul>
           </section>
         </div>

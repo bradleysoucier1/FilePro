@@ -73,6 +73,11 @@ const fileList = document.querySelector("#file-list");
 const statusText = document.querySelector("#status");
 const userEmail = document.querySelector("#user-email");
 const uploadProgress = document.querySelector("#upload-progress");
+const textFileForm = document.querySelector("#text-file-form");
+const textFileNameInput = document.querySelector("#text-file-name");
+const textFileContentInput = document.querySelector("#text-file-content");
+const saveTextFileBtn = document.querySelector("#save-text-file-btn");
+const cancelTextEditBtn = document.querySelector("#cancel-text-edit-btn");
 
 const createRipple = (event) => {
   const button = event.currentTarget;
@@ -124,6 +129,7 @@ document.addEventListener("click", (event) => {
 let unsubscribeFiles = null;
 let unsubscribeFolders = null;
 let activeFolderId = null;
+let editingTextFile = null;
 
 const setStatus = (message, isError = false) => {
   statusText.textContent = message;
@@ -155,7 +161,26 @@ const setFolderHash = (folderId) => {
   }
 };
 
+const sanitizeTxtFileName = (name) => {
+  const trimmed = name.trim();
+  const safeBase = (trimmed || "untitled")
+    .replace(/\.txt$/i, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 80) || "untitled";
+  return `${safeBase}.txt`;
+};
+
+const resetTextFileEditor = () => {
+  editingTextFile = null;
+  textFileForm.reset();
+  saveTextFileBtn.textContent = "Save .txt";
+  cancelTextEditBtn.classList.add("hidden");
+};
+
+const isTxtFile = (file) => file?.type === "text/plain" || /\.txt$/i.test(file?.name || "");
+
 const renderFiles = (docs) => {
+
   clearFiles();
 
   if (docs.length === 0) {
@@ -167,6 +192,10 @@ const renderFiles = (docs) => {
     const li = document.createElement("li");
     const uploadedAt = item.createdAt?.toDate?.() || new Date();
 
+    const textEditButton = isTxtFile(item)
+      ? `<button type="button" data-edit-text-id="${item.id}" data-name="${encodeURIComponent(item.name)}" data-url="${encodeURIComponent(item.downloadURL)}" data-storage-path="${item.storagePath}" class="secondary">Edit text</button>`
+      : "";
+
     li.innerHTML = `
       <div>
         <strong>${item.name}</strong><br>
@@ -174,6 +203,7 @@ const renderFiles = (docs) => {
       </div>
       <div class="file-actions">
         <a href="${item.downloadURL}" target="_blank" rel="noopener noreferrer">Open</a>
+        ${textEditButton}
         <button type="button" data-delete-id="${item.id}" data-storage-path="${item.storagePath}" class="secondary">Delete</button>
       </div>
     `;
@@ -379,7 +409,68 @@ folderForm.addEventListener("submit", async (event) => {
   }
 });
 
+textFileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const user = auth.currentUser;
+  if (!user) {
+    setStatus("You must be signed in.", true);
+    return;
+  }
+
+  const fileName = sanitizeTxtFileName(textFileNameInput.value);
+  const content = textFileContentInput.value;
+
+  saveTextFileBtn.disabled = true;
+
+  try {
+    const blob = new Blob([content], { type: "text/plain" });
+    const storagePath = editingTextFile?.storagePath || `users/${user.uid}/${activeFolderId || "root"}/txt/${Date.now()}-${fileName}`;
+    const uploadTask = uploadBytesResumable(ref(storage, storagePath), blob);
+
+    await new Promise((resolve, reject) => {
+      uploadTask.on("state_changed", null, reject, resolve);
+    });
+
+    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+    if (editingTextFile) {
+      await updateDoc(doc(db, "users", user.uid, "files", editingTextFile.id), {
+        name: fileName,
+        size: blob.size,
+        type: "text/plain",
+        downloadURL,
+        updatedAt: serverTimestamp(),
+      });
+      setStatus("Text file updated.");
+    } else {
+      await addDoc(collection(db, "users", user.uid, "files"), {
+        name: fileName,
+        size: blob.size,
+        type: "text/plain",
+        storagePath,
+        folderId: activeFolderId || null,
+        downloadURL,
+        createdAt: serverTimestamp(),
+      });
+      setStatus("Text file created.");
+    }
+
+    resetTextFileEditor();
+  } catch (error) {
+    setStatus(error.message || "Failed to save text file.", true);
+  } finally {
+    saveTextFileBtn.disabled = false;
+  }
+});
+
+cancelTextEditBtn.addEventListener("click", () => {
+  resetTextFileEditor();
+  setStatus("Edit cancelled.");
+});
+
 uploadForm.addEventListener("submit", async (event) => {
+
   event.preventDefault();
   const user = auth.currentUser;
   const file = fileInput.files?.[0];
@@ -437,11 +528,42 @@ fileList.addEventListener("click", async (event) => {
     return;
   }
 
+  const user = auth.currentUser;
+  if (!user) {
+    return;
+  }
+
+  const editTextId = target.dataset.editTextId;
+  if (editTextId) {
+    target.disabled = true;
+    try {
+      const textUrl = decodeURIComponent(target.dataset.url || "");
+      const fileName = decodeURIComponent(target.dataset.name || "notes.txt");
+      const response = await fetch(textUrl);
+      const content = await response.text();
+
+      editingTextFile = {
+        id: editTextId,
+        storagePath: target.dataset.storagePath,
+      };
+      textFileNameInput.value = fileName;
+      textFileContentInput.value = content;
+      saveTextFileBtn.textContent = "Update .txt";
+      cancelTextEditBtn.classList.remove("hidden");
+      textFileNameInput.focus();
+      setStatus("Editing text file.");
+    } catch (error) {
+      setStatus(error.message || "Failed to load text file.", true);
+    } finally {
+      target.disabled = false;
+    }
+    return;
+  }
+
   const fileId = target.dataset.deleteId;
   const storagePath = target.dataset.storagePath;
-  const user = auth.currentUser;
 
-  if (!fileId || !storagePath || !user) {
+  if (!fileId || !storagePath) {
     return;
   }
 
@@ -450,6 +572,11 @@ fileList.addEventListener("click", async (event) => {
   try {
     await deleteObject(ref(storage, storagePath));
     await deleteDoc(doc(db, "users", user.uid, "files", fileId));
+
+    if (editingTextFile?.id === fileId) {
+      resetTextFileEditor();
+    }
+
     setStatus("File deleted.");
   } catch (error) {
     setStatus(error.message, true);
@@ -559,6 +686,7 @@ onAuthStateChanged(auth, async (user) => {
     clearFiles();
     clearFolders();
     activeFolderId = null;
+    resetTextFileEditor();
 
     if (unsubscribeFiles) {
       unsubscribeFiles();

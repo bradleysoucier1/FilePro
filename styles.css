@@ -126,6 +126,25 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18);
 }
 
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--text);
+  resize: vertical;
+  font-family: "Roboto Mono", "Consolas", monospace;
+  min-height: 150px;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18);
+}
+
 button {
   position: relative;
   overflow: hidden;
@@ -224,6 +243,19 @@ button.danger:hover {
 
 .upload-form {
   margin-bottom: 10px;
+}
+
+.text-file-form {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.text-file-form h4 {
+  margin: 0;
+  font-size: 15px;
 }
 
 .hidden {
