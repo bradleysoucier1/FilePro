@@ -30,6 +30,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
   deleteObject,
+  getBlob,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
 import {
   getAnalytics,
@@ -193,7 +194,7 @@ const renderFiles = (docs) => {
     const uploadedAt = item.createdAt?.toDate?.() || new Date();
 
     const textEditButton = isTxtFile(item)
-      ? `<button type="button" data-edit-text-id="${item.id}" data-name="${encodeURIComponent(item.name)}" data-url="${encodeURIComponent(item.downloadURL)}" data-storage-path="${item.storagePath}" class="secondary">Edit text</button>`
+      ? `<button type="button" data-edit-text-id="${item.id}" class="secondary">Edit text</button>`
       : "";
 
     li.innerHTML = `
@@ -537,16 +538,22 @@ fileList.addEventListener("click", async (event) => {
   if (editTextId) {
     target.disabled = true;
     try {
-      const textUrl = decodeURIComponent(target.dataset.url || "");
-      const fileName = decodeURIComponent(target.dataset.name || "notes.txt");
-      const response = await fetch(textUrl);
-      const content = await response.text();
+      const fileDocRef = doc(db, "users", user.uid, "files", editTextId);
+      const fileSnap = await getDoc(fileDocRef);
+
+      if (!fileSnap.exists()) {
+        throw new Error("Text file no longer exists.");
+      }
+
+      const fileData = fileSnap.data();
+      const blob = await getBlob(ref(storage, fileData.storagePath));
+      const content = await blob.text();
 
       editingTextFile = {
         id: editTextId,
-        storagePath: target.dataset.storagePath,
+        storagePath: fileData.storagePath,
       };
-      textFileNameInput.value = fileName;
+      textFileNameInput.value = fileData.name || "notes.txt";
       textFileContentInput.value = content;
       saveTextFileBtn.textContent = "Update .txt";
       cancelTextEditBtn.classList.remove("hidden");
