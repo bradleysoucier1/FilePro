@@ -30,7 +30,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
   deleteObject,
-  getBlob,
+  getBytes,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
 import {
   getAnalytics,
@@ -179,6 +179,36 @@ const resetTextFileEditor = () => {
 };
 
 const isTxtFile = (file) => file?.type === "text/plain" || /\.txt$/i.test(file?.name || "");
+
+const decodeUtf8Bytes = (uint8) => {
+  const decoder = new TextDecoder("utf-8");
+  return decoder.decode(uint8);
+};
+
+const loadTextContentForEdit = async (fileData) => {
+  if (typeof fileData.textContent === "string") {
+    return fileData.textContent;
+  }
+
+  if (!fileData.storagePath) {
+    throw new Error("Text file storage path is missing.");
+  }
+
+  try {
+    const bytes = await getBytes(ref(storage, fileData.storagePath));
+    return decodeUtf8Bytes(bytes);
+  } catch (storageError) {
+    if (fileData.downloadURL) {
+      const response = await fetch(fileData.downloadURL, { cache: "no-store" });
+      if (!response.ok) {
+        throw storageError;
+      }
+      return await response.text();
+    }
+
+    throw storageError;
+  }
+};
 
 const renderFiles = (docs) => {
 
@@ -442,6 +472,7 @@ textFileForm.addEventListener("submit", async (event) => {
         type: "text/plain",
         downloadURL,
         updatedAt: serverTimestamp(),
+        textContent: content,
       });
       setStatus("Text file updated.");
     } else {
@@ -453,6 +484,7 @@ textFileForm.addEventListener("submit", async (event) => {
         folderId: activeFolderId || null,
         downloadURL,
         createdAt: serverTimestamp(),
+        textContent: content,
       });
       setStatus("Text file created.");
     }
@@ -546,8 +578,7 @@ fileList.addEventListener("click", async (event) => {
       }
 
       const fileData = fileSnap.data();
-      const blob = await getBlob(ref(storage, fileData.storagePath));
-      const content = await blob.text();
+      const content = await loadTextContentForEdit(fileData);
 
       editingTextFile = {
         id: editTextId,
