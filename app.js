@@ -79,6 +79,7 @@ const shareSection = document.querySelector("#share-section");
 const shareMeta = document.querySelector("#share-meta");
 const shareOpenLink = document.querySelector("#share-open-link");
 const shareBackBtn = document.querySelector("#share-back-btn");
+const shareFileList = document.querySelector("#share-file-list");
 const textFileForm = document.querySelector("#text-file-form");
 const textFileNameInput = document.querySelector("#text-file-name");
 const textFileContentInput = document.querySelector("#text-file-content");
@@ -169,6 +170,29 @@ const showSection = (section) => {
   appSection.classList.add("hidden");
   shareSection.classList.add("hidden");
   section.classList.remove("hidden");
+};
+
+const renderShareFileList = (files = []) => {
+  shareFileList.innerHTML = "";
+
+  if (!Array.isArray(files) || files.length === 0) {
+    shareFileList.innerHTML = "<li>No files available in this shared folder.</li>";
+    return;
+  }
+
+  files.forEach((file) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div>
+        <strong>${file.name || "Unnamed file"}</strong><br>
+        <small>${(((file.size || 0) / 1024)).toFixed(1)} KB</small>
+      </div>
+      <div class="file-actions">
+        <a href="${file.downloadURL}" target="_blank" rel="noopener noreferrer">Open</a>
+      </div>
+    `;
+    shareFileList.appendChild(li);
+  });
 };
 
 const setFolderHash = (folderId) => {
@@ -405,14 +429,16 @@ const openShareView = async (shareId) => {
 
     if (isFolderShare) {
       shareMeta.textContent = `${data.name || "Shared folder"} • shared by ${data.ownerEmail || "FilePro user"}`;
-      shareOpenLink.textContent = auth.currentUser ? "Open shared folder" : "Sign in to open folder";
-      shareOpenLink.href = auth.currentUser
-        ? `${window.location.pathname}#folder/${encodeURIComponent(data.folderId)}`
-        : `${window.location.pathname}`;
+      shareOpenLink.textContent = "Open folder owner profile";
+      shareOpenLink.href = `${window.location.pathname}`;
+      renderShareFileList(data.files || []);
+      shareFileList.classList.remove("hidden");
     } else {
       shareMeta.textContent = `${data.name || "Shared file"} • shared by ${data.ownerEmail || "FilePro user"}`;
       shareOpenLink.textContent = "Open shared file";
       shareOpenLink.href = data.downloadURL;
+      renderShareFileList([]);
+      shareFileList.classList.add("hidden");
     }
 
     showSection(shareSection);
@@ -420,6 +446,7 @@ const openShareView = async (shareId) => {
   } catch (error) {
     shareMeta.textContent = "";
     shareOpenLink.href = "#";
+    renderShareFileList([]);
     showSection(auth.currentUser ? appSection : authSection);
     setStatus(error.message || "Unable to open shared link.", true);
   }
@@ -832,6 +859,18 @@ folderList.addEventListener("click", async (event) => {
         throw new Error("Folder not found.");
       }
       const folderData = folderSnap.data();
+      const filesSnap = await getDocs(query(collection(db, "users", user.uid, "files"), where("folderId", "==", folderShareId)));
+      const files = filesSnap.docs.map((d) => {
+        const f = d.data();
+        return {
+          id: d.id,
+          name: f.name || "Unnamed file",
+          size: f.size || 0,
+          type: f.type || "application/octet-stream",
+          downloadURL: f.downloadURL || "",
+        };
+      }).filter((f) => Boolean(f.downloadURL));
+
       const shareId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`).replace(/[^a-zA-Z0-9-]/g, "");
       await setDoc(doc(db, "publicShares", shareId), {
         ownerUid: user.uid,
@@ -839,6 +878,7 @@ folderList.addEventListener("click", async (event) => {
         kind: "folder",
         folderId: folderShareId,
         name: folderData.name,
+        files,
         createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "users", user.uid, "folders", folderShareId), { shareId });
