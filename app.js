@@ -293,6 +293,11 @@ const renderFolders = (folders) => {
 
   folders.forEach((folder) => {
     const li = document.createElement("li");
+    const folderShareButtons = folder.shareId
+      ? `<button type="button" data-folder-unshare-id="${folder.id}" data-share-id="${folder.shareId}" class="secondary">Unshare</button>
+         <button type="button" data-folder-copy-share-id="${folder.shareId}" class="secondary">Copy link</button>`
+      : `<button type="button" data-folder-share-id="${folder.id}" class="secondary">Share</button>`;
+
     li.innerHTML = `
       <div>
         <strong>📁 ${folder.name}</strong><br>
@@ -300,6 +305,7 @@ const renderFolders = (folders) => {
       </div>
       <div class="file-actions">
         <button type="button" data-open-folder-id="${folder.id}">Open</button>
+        ${folderShareButtons}
         <button type="button" data-rename-folder-id="${folder.id}" data-folder-name="${folder.name}" class="secondary">Rename</button>
         <button type="button" data-delete-folder-id="${folder.id}" class="danger">Delete</button>
       </div>
@@ -395,10 +401,22 @@ const openShareView = async (shareId) => {
     }
 
     const data = sharedDoc.data();
-    shareMeta.textContent = `${data.name || "Shared file"} • shared by ${data.ownerEmail || "FilePro user"}`;
-    shareOpenLink.href = data.downloadURL;
+    const isFolderShare = data.kind === "folder";
+
+    if (isFolderShare) {
+      shareMeta.textContent = `${data.name || "Shared folder"} • shared by ${data.ownerEmail || "FilePro user"}`;
+      shareOpenLink.textContent = auth.currentUser ? "Open shared folder" : "Sign in to open folder";
+      shareOpenLink.href = auth.currentUser
+        ? `${window.location.pathname}#folder/${encodeURIComponent(data.folderId)}`
+        : `${window.location.pathname}`;
+    } else {
+      shareMeta.textContent = `${data.name || "Shared file"} • shared by ${data.ownerEmail || "FilePro user"}`;
+      shareOpenLink.textContent = "Open shared file";
+      shareOpenLink.href = data.downloadURL;
+    }
+
     showSection(shareSection);
-    setStatus("Opened shared file link.");
+    setStatus("Opened shared link.");
   } catch (error) {
     shareMeta.textContent = "";
     shareOpenLink.href = "#";
@@ -794,6 +812,64 @@ folderList.addEventListener("click", async (event) => {
     return;
   }
 
+  const folderCopyShareId = target.dataset.folderCopyShareId;
+  if (folderCopyShareId) {
+    try {
+      await navigator.clipboard.writeText(getShareUrl(folderCopyShareId));
+      setStatus("Folder share link copied.");
+    } catch {
+      setStatus("Unable to copy link. Copy it manually: " + getShareUrl(folderCopyShareId), true);
+    }
+    return;
+  }
+
+  const folderShareId = target.dataset.folderShareId;
+  if (folderShareId) {
+    target.disabled = true;
+    try {
+      const folderSnap = await getDoc(doc(db, "users", user.uid, "folders", folderShareId));
+      if (!folderSnap.exists()) {
+        throw new Error("Folder not found.");
+      }
+      const folderData = folderSnap.data();
+      const shareId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`).replace(/[^a-zA-Z0-9-]/g, "");
+      await setDoc(doc(db, "publicShares", shareId), {
+        ownerUid: user.uid,
+        ownerEmail: user.email || "",
+        kind: "folder",
+        folderId: folderShareId,
+        name: folderData.name,
+        createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "users", user.uid, "folders", folderShareId), { shareId });
+      setStatus("Folder shared. Link copied.");
+      try { await navigator.clipboard.writeText(getShareUrl(shareId)); } catch {}
+    } catch (error) {
+      setStatus(error.message || "Failed to share folder.", true);
+    } finally {
+      target.disabled = false;
+    }
+    return;
+  }
+
+  const folderUnshareId = target.dataset.folderUnshareId;
+  if (folderUnshareId) {
+    target.disabled = true;
+    try {
+      const shareId = target.dataset.shareId;
+      if (shareId) {
+        await deleteDoc(doc(db, "publicShares", shareId));
+      }
+      await updateDoc(doc(db, "users", user.uid, "folders", folderUnshareId), { shareId: null });
+      setStatus("Folder unshared.");
+    } catch (error) {
+      setStatus(error.message || "Failed to unshare folder.", true);
+    } finally {
+      target.disabled = false;
+    }
+    return;
+  }
+
   const renameFolderId = target.dataset.renameFolderId;
   if (renameFolderId) {
     const currentName = target.dataset.folderName || "";
@@ -839,7 +915,13 @@ folderList.addEventListener("click", async (event) => {
       });
     }
 
+    const folderSnap = await getDoc(doc(db, "users", user.uid, "folders", deleteFolderId));
+    const shareId = folderSnap.exists() ? folderSnap.data().shareId : null;
+
     await deleteDoc(doc(db, "users", user.uid, "folders", deleteFolderId));
+    if (shareId) {
+      await deleteDoc(doc(db, "publicShares", shareId));
+    }
 
     if (activeFolderId === deleteFolderId) {
       setFolderHash(null);
